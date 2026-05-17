@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 12面体サイコロ（出目表示）</title>
+    <title>3D 12面体カスタムサイコロ</title>
     <style>
         body {
             margin: 0;
@@ -23,7 +23,7 @@
         #ui-container {
             position: absolute;
             bottom: 10%;
-            left: 50%;
+            left: 40%;
             transform: translateX(-50%);
             text-align: center;
             z-index: 10;
@@ -55,7 +55,7 @@
         #result {
             position: absolute;
             top: 10%;
-            left: 50%;
+            left: 40%;
             transform: translateX(-50%);
             color: #fff;
             font-size: 48px;
@@ -71,6 +71,63 @@
             opacity: 1;
             transform: translateX(-50%) scale(1.1);
         }
+
+        /* 右側の入力サイドパネル */
+        #input-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 280px;
+            height: 100vh;
+            background: rgba(15, 23, 30, 0.85);
+            backdrop-filter: blur(10px);
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+            padding: 20px;
+            color: #fff;
+            overflow-y: auto;
+            z-index: 20;
+            border-left: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #input-panel h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 18px;
+            text-align: center;
+            border-bottom: 2px solid #e67e22;
+            padding-bottom: 10px;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .input-group label {
+            width: 60px;
+            font-size: 14px;
+            color: #bdc3c7;
+        }
+
+        .input-group input {
+            flex: 1;
+            background: #2c3e50;
+            border: 1px solid #7f8c8d;
+            border-radius: 4px;
+            padding: 6px 10px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #e67e22;
+            box-shadow: 0 0 5px rgba(230, 126, 34, 0.5);
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -80,6 +137,11 @@
     <div id="canvas-container"></div>
     <div id="ui-container">
         <button id="roll-button">サイコロを振る</button>
+    </div>
+
+    <div id="input-panel">
+        <h3>面の値をカスタム</h3>
+        <div id="inputs-container"></div>
     </div>
 
     <script>
@@ -92,9 +154,9 @@
         let posX = 0, posY = 0, posZ = 0;
         let rotSpeedX = 0, rotSpeedY = 0, rotSpeedZ = 0;
         const gravity = -0.015;
-        const bounce = -0.55; // 跳ね返り係数
+        const bounce = -0.55; 
 
-        // 正十二面体（12面体）の各面の中心ベクトル（向いている方向）
+        // 正十二面体（12面体）の各面の中心ベクトル
         const t = (1 + Math.sqrt(5)) / 2;
         const faceNormals = [
             new THREE.Vector3( 0,  1/t,  t).normalize(),
@@ -111,39 +173,29 @@
             new THREE.Vector3(-t,  0, -1/t).normalize()
         ];
 
-        // 各面に対応する数値
-        const faceValues = [1, 12, 2, 11, 3, 10, 4, 9, 5, 8, 6, 7];
-        // 面番号から数値へのマップ
-        const faceMap = new Map();
-        for (let i = 0; i < 12; i++) {
-            faceMap.set(i, faceValues[i]);
-        }
-        // 数値から面番号へのマップ
-        const valueMap = new Map();
-        for (let i = 0; i < 12; i++) {
-            valueMap.set(faceValues[i], i);
-        }
+        // 各面の初期値（インデックスに対応）
+        let faceValues = ["1", "12", "2", "11", "3", "10", "4", "9", "5", "8", "6", "7"];
 
         // --- 初期化 ---
         function init() {
+            // 入力欄の生成
+            createInputFields();
+
             const container = document.getElementById('canvas-container');
 
-            // シーンの作成
             scene = new THREE.Scene();
 
-            // カメラの設定
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 7, 10);
+            // カメラの位置（右側にパネルがあるので、少し左寄りに中央をずらすように調整も可ですが、基本はそのまま）
+            camera = new THREE.PerspectiveCamera(45, (window.innerWidth - 280) / window.innerHeight, 0.1, 100);
+            camera.position.set(-0.5, 7, 10); // サイコロの初期位置が見えやすいよう少し左にオフセット
             camera.lookAt(0, 0, 0);
 
-            // レンダラーの設定
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.appendChild(renderer.domElement);
 
-            // ライトの設定
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
@@ -152,15 +204,9 @@
             dirLight.castShadow = true;
             dirLight.shadow.mapSize.width = 2048;
             dirLight.shadow.mapSize.height = 2048;
-            dirLight.shadow.camera.near = 0.5;
-            dirLight.shadow.camera.far = 25;
-            dirLight.shadow.camera.left = -6;
-            dirLight.shadow.camera.right = 6;
-            dirLight.shadow.camera.top = 6;
-            dirLight.shadow.camera.bottom = -6;
             scene.add(dirLight);
 
-            // 床（影を受ける面）
+            // 床
             const floorGeo = new THREE.PlaneGeometry(50, 50);
             const floorMat = new THREE.ShadowMaterial({ opacity: 0.3 });
             const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -176,12 +222,37 @@
             window.addEventListener('resize', onWindowResize, false);
             document.getElementById('roll-button').addEventListener('click', rollDice);
 
-            // アニメーションループ開始
             animate();
         }
 
-        // --- キャンバス上に数字を描画してテクスチャを作る ---
-        function createDiceTexture(number, isStatic = false, rotation = 0) {
+        // --- 右側の入力フォームを生成 ---
+        function createInputFields() {
+            const container = document.getElementById('inputs-container');
+            for (let i = 0; i < 12; i++) {
+                const group = document.createElement('div');
+                group.className = 'input-group';
+
+                const label = document.createElement('label');
+                label.innerText = `面 ${i + 1}:`;
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = `face-input-${i}`;
+                input.value = faceValues[i];
+                // 入力内容が変わったらリアルタイムにサイコロのテクスチャを更新
+                input.addEventListener('input', (e) => {
+                    faceValues[i] = e.target.value;
+                    updateDiceTextures();
+                });
+
+                group.appendChild(label);
+                group.appendChild(input);
+                container.appendChild(group);
+            }
+        }
+
+        // --- キャンバス上に文字を描画してテクスチャを作る ---
+        function createDiceTexture(text, isHighlight = false) {
             const canvas = document.createElement('canvas');
             canvas.width = 256;
             canvas.height = 256;
@@ -194,12 +265,17 @@
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, 256, 256);
 
-            // 数字の描画
+            // 文字の描画
             ctx.save();
             ctx.translate(128, 128);
-            ctx.rotate(rotation);
-            ctx.font = 'bold 85px Georgia, serif';
-            ctx.fillStyle = isStatic ? '#27ae60' : '#2c3e50'; // 結果の面の色を変更
+            
+            // 文字列の長さに応じてフォントサイズを動的に調整（長い文字列がはみ出さないように）
+            let fontSize = 85;
+            if (text.length > 2) fontSize = 50;
+            if (text.length > 4) fontSize = 35;
+
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.fillStyle = isHighlight ? '#e67e22' : '#2c3e50'; // 当たり面はオレンジ
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
@@ -208,7 +284,7 @@
             ctx.shadowOffsetX = 2;
             ctx.shadowOffsetY = 2;
 
-            ctx.fillText(number, 0, 0);
+            ctx.fillText(text, 0, 0);
             ctx.restore();
 
             const texture = new THREE.CanvasTexture(canvas);
@@ -217,21 +293,16 @@
 
         // --- 12面体サイコロの生成 ---
         function createDice() {
-            // 正十二面体のジオメトリ
             const geometry = new THREE.DodecahedronGeometry(1.5);
-
-            // 各面に個別のテクスチャ（数字）を割り当てる
             const materials = [];
             for (let i = 0; i < 12; i++) {
                 materials.push(new THREE.MeshStandardMaterial({
-                    map: createDiceTexture(faceMap.get(i)),
+                    map: createDiceTexture(faceValues[i]),
                     roughness: 0.2,
-                    metalness: 0.1,
-                    bumpScale: 0.05
+                    metalness: 0.1
                 }));
             }
 
-            const pos = geometry.attributes.position;
             geometry.clearGroups();
             for (let i = 0; i < 12; i++) {
                 geometry.addGroup(i * 6, 6, i);
@@ -241,13 +312,25 @@
             dice.castShadow = true;
             dice.receiveShadow = true;
             
-            // 初期位置
             resetDicePosition();
             scene.add(dice);
         }
 
+        // --- すべての面のテクスチャを最新の入力値に書き換える ---
+        function updateDiceTextures(highlightIndex = -1) {
+            if (!dice) return;
+            for (let i = 0; i < 12; i++) {
+                const isHighlight = (i === highlightIndex);
+                // 既存のテクスチャを解放してメモリリークを防ぐ
+                if (dice.material[i].map) dice.material[i].map.dispose();
+                
+                dice.material[i].map = createDiceTexture(faceValues[i], isHighlight);
+                dice.material[i].needsUpdate = true;
+            }
+        }
+
         function resetDicePosition() {
-            posX = 0; posY = 0; posZ = 0;
+            posX = -0.5; posY = 0; posZ = 0;
             dice.position.set(posX, posY, posZ);
             dice.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
         }
@@ -259,27 +342,16 @@
             isRolling = true;
             document.getElementById('result').classList.remove('show');
 
-            // 出目を決定
-            const resultValue = Math.floor(Math.random() * 12) + 1;
-            const targetFaceIndex = valueMap.get(resultValue);
+            // 全て通常カラーに戻す
+            updateDiceTextures();
 
-            // サイコロの全ての面のテクスチャを通常の状態に戻す
-            for (let i = 0; i < 12; i++) {
-                dice.material[i].map = createDiceTexture(faceMap.get(i));
-                dice.material[i].needsUpdate = true;
-            }
-
-            // 出目の面だけをハイライト（静止状態をシミュレート）
-            dice.material[targetFaceIndex].map = createDiceTexture(resultValue, true);
-            dice.material[targetFaceIndex].needsUpdate = true;
-
-            // 開始位置を空中へ
-            posX = (Math.random() - 0.5) * 2;
+            // 開始位置を空中へ（左寄りの位置から落とす）
+            posX = -0.5 + (Math.random() - 0.5) * 1.5;
             posY = 4 + Math.random() * 2;
-            posZ = (Math.random() - 0.5) * 2;
+            posZ = (Math.random() - 0.5) * 1.5;
             dice.position.set(posX, posY, posZ);
 
-            // 初期速度と激しい回転を与える
+            // 初期速度と回転力
             velocityY = 0.1;
             rotSpeedX = (Math.random() * 0.4 + 0.3) * (Math.random() > 0.5 ? 1 : -1);
             rotSpeedY = (Math.random() * 0.4 + 0.3) * (Math.random() > 0.5 ? 1 : -1);
@@ -291,49 +363,34 @@
             let maxDot = -1;
             let highestFaceIndex = 0;
 
-            // サイコロの現在の回転行列を取得
             const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(dice.rotation);
 
-            // 全ての面の法線ベクトルを現在の回転に合わせて変換し、真上(0, 1, 0)との内積を計算
             for (let i = 0; i < faceNormals.length; i++) {
                 const worldNormal = faceNormals[i].clone().applyMatrix4(rotationMatrix);
-                const dot = worldNormal.dot(new THREE.Vector3(0, 1, 0)); // 真上ベクトルとの内積
+                const dot = worldNormal.dot(new THREE.Vector3(0, 1, 0));
 
-                // 内積が最も大きい（＝最も真上を向いている）面を探す
                 if (dot > maxDot) {
                     maxDot = dot;
                     highestFaceIndex = i;
                 }
             }
 
-            // 結果を表示
-            const resultValue = faceMap.get(highestFaceIndex);
+            // 結果を画面上に表示（入力欄に対応した任意の文字が表示される）
+            const resultValue = faceValues[highestFaceIndex];
             const resultDiv = document.getElementById('result');
-            resultDiv.innerText = resultValue;
+            resultDiv.innerText = resultValue !== "" ? resultValue : `面 ${highestFaceIndex + 1}`;
             resultDiv.classList.add('show');
 
-            // 出目の面をハイライト（すでに rollDice でやっているが、念のため）
-            for (let i = 0; i < 12; i++) {
-                if (i === highestFaceIndex) {
-                    dice.material[i].map = createDiceTexture(faceMap.get(i), true);
-                } else {
-                    dice.material[i].map = createDiceTexture(faceMap.get(i));
-                }
-                dice.material[i].needsUpdate = true;
-            }
+            // 出た面をオレンジにハイライト
+            updateDiceTextures(highestFaceIndex);
 
-            // ジャストな角度に微調整
+            // 角度調整
             alignDiceToFace(highestFaceIndex);
         }
 
-        // 最も上を向いている面を完全に水平にする補正アニメーション
         function alignDiceToFace(faceIndex) {
             const targetNormal = faceNormals[faceIndex];
-            
-            // 擬似的にターゲットの面が真上を向くクォータニオン（回転）を計算
             const quaternion = new THREE.Quaternion().setFromUnitVectors(targetNormal, new THREE.Vector3(0, 1, 0));
-            
-            // 自然に静止したように見せるため、少しだけ現在の回転を維持しつつ補正
             dice.quaternion.slerp(quaternion, 1.0);
         }
 
@@ -342,30 +399,24 @@
             requestAnimationFrame(animate);
 
             if (isRolling) {
-                // 重力の適用
                 velocityY += gravity;
                 posY += velocityY;
                 
-                // 横方向にも少し散らす
-                posX += rotSpeedX * 0.05;
-                posZ += rotSpeedY * 0.05;
+                posX += rotSpeedX * 0.03;
+                posZ += rotSpeedY * 0.03;
 
-                // 回転の適用
                 dice.rotation.x += rotSpeedX;
                 dice.rotation.y += rotSpeedY;
                 dice.rotation.z += rotSpeedZ;
 
-                // 床との衝突判定
                 if (posY <= -1.2) {
                     posY = -1.2;
-                    velocityY = velocityY * bounce; // 跳ね返り
+                    velocityY = velocityY * bounce; 
 
-                    // 衝突時に回転と横移動を減衰させる
                     rotSpeedX *= 0.6;
                     rotSpeedY *= 0.6;
                     rotSpeedZ *= 0.6;
 
-                    // 完全にエネルギーが無くなったら停止判定
                     if (Math.abs(velocityY) < 0.01 && Math.abs(rotSpeedX) < 0.01) {
                         isRolling = false;
                         velocityY = 0;
@@ -373,7 +424,9 @@
                     }
                 }
 
-                // 画面外に行きすぎないようにブレーキ
+                // 右側の入力パネルにめり込まないよう、X方向の移動範囲を制限
+                if (posX > 1.5) posX = 1.5;
+                if (posX < -3.0) posX = -3.0;
                 posX *= 0.98;
                 posZ *= 0.98;
 
@@ -385,12 +438,12 @@
 
         // --- リサイズ処理 ---
         function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            // パネルの幅 (280px) を引いた領域でカメラのアスペクト比を再計算
+            camera.aspect = (window.innerWidth - 280) / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // 初期化実行
         init();
     </script>
 </body>
