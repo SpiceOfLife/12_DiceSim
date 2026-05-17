@@ -3,484 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 12面体サイコロ - 文字サイズ自動最適化</title>
+    <title>12面体ダイスロール</title>
     <style>
         body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a2530; /* 元画像のダークトーンを基調に */
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
             margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: radial-gradient(circle at center, #2c3a47 0%, #17202a 100%);
-            font-family: 'Times New Roman', Times, serif;
             user-select: none;
         }
 
-        #canvas-container {
-            width: 100vw;
-            height: 100vh;
-            display: block;
-        }
-
-        #ui-container {
-            position: absolute;
-            bottom: 6%;
-            left: 50%;
-            transform: translateX(-50%);
+        .container {
             text-align: center;
-            z-index: 10;
+            background-color: #243447; /* わずかに明るいエリア */
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
 
-        button#roll-button {
-            background: linear-gradient(135deg, #d35400, #e67e22);
-            border: none;
-            color: white;
-            padding: 14px 45px;
-            font-size: 16px;
-            font-weight: bold;
-            font-family: 'sans-serif';
-            border-radius: 25px;
-            cursor: pointer;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-            transition: all 0.2s ease;
+        /* サイコロのコンテナ（3D効果のため） */
+        .dice-scene {
+            width: 200px;
+            height: 200px;
+            perspective: 600px;
+            margin: 0 auto 30px auto;
         }
 
-        button#roll-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(230, 126, 34, 0.5);
+        /* 実際のサイコロ要素（12面体の複雑さをCSSで完全に再現するのは困難なため、
+           今回は元の画像のテイストを活かした2D表現にアニメーションを加えています） */
+        .dice {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out; /* 振っている最中の短い変化 */
         }
 
-        #result {
+        /* サイコロの各面の基本スタイル（元の画像のメタリック感をイメージ） */
+        .dice-face {
             position: absolute;
-            top: 10%;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #ffffff;
-            font-size: 42px;
-            font-weight: bold;
-            font-family: 'Georgia', 'Times New Roman', serif;
-            letter-spacing: 2px;
-            opacity: 0;
-            transition: opacity 0.4s ease, transform 0.4s ease;
-            z-index: 10;
-            text-shadow: 0 0 15px rgba(255,255,255,0.6);
-        }
-
-        #result.show {
-            opacity: 1;
-            transform: translateX(-50%) scale(1);
-        }
-
-        #menu-trigger {
-            position: absolute;
-            bottom: 4%;
-            right: 4%;
-            width: 35px;
-            height: 35px;
-            background: rgba(255, 255, 255, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px;
-            cursor: pointer;
-            z-index: 30;
+            width: 100%;
+            height: 100%;
+            background-color: #3d4a5c; /* ブラッシュドメタルのベース色 */
+            border: 2px solid #d4af37; /* ゴールドのエッジ */
+            border-radius: 15px;
             display: flex;
-            align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 20px;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 15px rgba(255,255,255,0.1);
-        }
-        #menu-trigger:hover {
-            background: rgba(255, 255, 255, 0.3);
-            box-shadow: 0 0 20px rgba(255,255,255,0.4);
-        }
-
-        #input-panel {
-            position: absolute;
-            bottom: 10%;
-            right: 4%;
-            width: 260px;
-            max-height: 70vh;
-            background: rgba(19, 28, 36, 0.92);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-            border-radius: 12px;
-            box-sizing: border-box;
-            padding: 20px;
-            color: #fff;
-            overflow-y: auto;
-            z-index: 20;
-            border: 1px solid rgba(255,255,255,0.1);
-            transform: translateY(20px);
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.3s ease;
-        }
-
-        #input-panel.active {
-            transform: translateY(0);
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        #input-panel h3 {
-            margin-top: 0;
-            margin-bottom: 15px;
-            font-size: 16px;
-            font-family: sans-serif;
-            text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.2);
-            padding-bottom: 8px;
-            color: #e67e22;
-        }
-
-        .input-group {
-            display: flex;
             align-items: center;
-            margin-bottom: 8px;
+            font-size: 80px;
+            font-weight: bold;
+            color: #f0f0f0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            box-sizing: border-box;
+            backface-visibility: hidden;
+            /* 面のグラデーションで立体感を出す */
+            background-image: linear-gradient(135deg, #4c5a6f 0%, #2e3b4d 100%);
         }
 
-        .input-group label {
-            width: 50px;
-            font-size: 12px;
-            color: #a0aab2;
-            font-family: sans-serif;
+        /* 12面体を模倣するために、CSSのクリップパスを使用して
+           1つの面を五角形に見せる（最も元の画像に近い中央の面） */
+        .dice-face.front {
+            /* 簡易的な五角形 */
+            clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+            background-color: #4c5a6f; /* 少し明るく */
+            border: 4px solid #f2cf66; /* より明るいゴールド */
         }
 
-        .input-group input {
-            flex: 1;
-            background: #253238;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 4px;
-            padding: 5px;
-            color: #fff;
-            font-size: 14px;
-            text-align: center;
+        /* 振るアニメーション用のクラス */
+        .dice.rolling {
+            animation: roll 0.1s infinite linear;
         }
 
-        .input-group input:focus {
-            outline: none;
-            border-color: #e67e22;
+        @keyframes roll {
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg); }
+        }
+
+        /* 結果表示エリア */
+        .result-display {
+            font-size: 24px;
+            min-height: 1.2em;
+            margin-bottom: 20px;
+        }
+
+        /* 元のボタンのデザインを再現 */
+        #roll-button {
+            background-color: #e67e22; /* 元画像のオレンジ */
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        #roll-button:hover {
+            background-color: #d35400; /* ホバーで少し暗く */
+        }
+
+        #roll-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #roll-button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+            box-shadow: none;
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-    <div id="result">10</div>
-    <div id="canvas-container"></div>
-    
-    <div id="ui-container">
-        <button id="roll-button">サイコロを振る</button>
+<div class="container">
+    <div class="dice-scene">
+        <div class="dice" id="dice">
+            <div class="dice-face front" id="dice-face">12</div>
+        </div>
     </div>
+    <div class="result-display" id="result-text"></div>
+    <button id="roll-button" onclick="rollDice()">サイコロを振る</button>
+</div>
 
-    <div id="menu-trigger">✦</div>
+<script>
+    const dice = document.getElementById('dice');
+    const diceFace = document.getElementById('dice-face');
+    const resultText = document.getElementById('result-text');
+    const rollButton = document.getElementById('roll-button');
 
-    <div id="input-panel">
-        <h3>面の値をカスタム</h3>
-        <div id="inputs-container"></div>
-    </div>
-
-    <script>
-        let scene, camera, renderer, dice;
-        let isRolling = false;
+    function rollDice() {
+        // ボタンを無効化
+        rollButton.disabled = true;
+        rollButton.textContent = '振っています...';
+        resultText.textContent = '';
         
-        let velocityY = 0;
-        let posX = 0, posY = 0, posZ = 0;
-        let rotSpeedX = 0, rotSpeedY = 0, rotSpeedZ = 0;
-        const gravity = -0.016;
-        const bounce = -0.50; 
+        // アニメーションを開始
+        dice.classList.add('rolling');
 
-        const t = (1 + Math.sqrt(5)) / 2;
-        const faceNormals = [
-            new THREE.Vector3( 0,  1/t,  t).normalize(),
-            new THREE.Vector3( 0,  1/t, -t).normalize(),
-            new THREE.Vector3( 0, -1/t,  t).normalize(),
-            new THREE.Vector3( 0, -1/t, -t).normalize(),
-            new THREE.Vector3( 1/t,  t,  0).normalize(),
-            new THREE.Vector3( 1/t, -t,  0).normalize(),
-            new THREE.Vector3(-1/t,  t,  0).normalize(),
-            new THREE.Vector3(-1/t, -t,  0).normalize(),
-            new THREE.Vector3( t,  0,  1/t).normalize(),
-            new THREE.Vector3( t,  0, -1/t).normalize(),
-            new THREE.Vector3(-t,  0,  1/t).normalize(),
-            new THREE.Vector3(-t,  0, -1/t).normalize()
-        ];
-
-        let faceValues = ["1", "12", "2", "11", "3", "10", "4", "9", "5", "8", "6", "7"];
-
-        function init() {
-            createInputFields();
-
-            const container = document.getElementById('canvas-container');
-            scene = new THREE.Scene();
-
-            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 6, 9);
-            camera.lookAt(0, -0.5, 0);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            container.appendChild(renderer.domElement);
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-            scene.add(ambientLight);
-
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-            dirLight.position.set(0, 12, 4);
-            dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 2048;
-            dirLight.shadow.mapSize.height = 2048;
-            scene.add(dirLight);
-
-            const fillLight = new THREE.DirectionalLight(0x85929e, 0.3);
-            fillLight.position.set(0, -5, 2);
-            scene.add(fillLight);
-
-            const floorGeo = new THREE.PlaneGeometry(50, 50);
-            const floorMat = new THREE.ShadowMaterial({ opacity: 0.4 });
-            const floor = new THREE.Mesh(floorGeo, floorMat);
-            floor.rotation.x = -Math.PI / 2;
-            floor.position.y = -1.5;
-            floor.receiveShadow = true;
-            scene.add(floor);
-
-            createDice();
-
-            window.addEventListener('resize', onWindowResize, false);
-            document.getElementById('roll-button').addEventListener('click', rollDice);
+        // 1.5秒後に結果を表示
+        setTimeout(() => {
+            // 1から12までのランダムな整数を生成
+            const result = Math.floor(Math.random() * 12) + 1;
             
-            const trigger = document.getElementById('menu-trigger');
-            const panel = document.getElementById('input-panel');
-            trigger.addEventListener('click', () => {
-                panel.classList.toggle('active');
-            });
-
-            animate();
-        }
-
-        function createInputFields() {
-            const container = document.getElementById('inputs-container');
-            for (let i = 0; i < 12; i++) {
-                const group = document.createElement('div');
-                group.className = 'input-group';
-
-                const label = document.createElement('label');
-                label.innerText = `面 ${i + 1}`;
-
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.id = `face-input-${i}`;
-                input.value = faceValues[i];
-                input.addEventListener('input', (e) => {
-                    faceValues[i] = e.target.value;
-                    updateDiceTextures();
-                });
-
-                group.appendChild(label);
-                group.appendChild(input);
-                container.appendChild(group);
-            }
-        }
-
-        // --- 文字列の長さに応じてサイズを100%収めるテクスチャジェネレーター ---
-        function createDiceTexture(text) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
-            const ctx = canvas.getContext('2d');
-
-            // ベースグラデーション
-            const grad = ctx.createRadialGradient(128, 128, 20, 128, 128, 130);
-            grad.addColorStop(0, '#5d6d7e');
-            grad.addColorStop(1, '#2e4053');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 256, 256);
-
-            // 外縁の飾り線
-            ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-            ctx.lineWidth = 8;
-            ctx.strokeRect(4, 4, 248, 248);
-
-            ctx.save();
-            ctx.translate(128, 128); // キャンバス中央を原点に
+            // サイコロの面とテキストを更新
+            diceFace.textContent = result;
+            resultText.textContent = `出た目は: ${result}`;
             
-            // 【重要】文字数・桁数に応じて最適なフォントサイズと位置を動的に決定
-            let fontSize = 75; // デフォルト（1〜2文字用）
-            let yOffset = 0;   // 垂直位置の微調整用
-
-            if (text.length === 3) {
-                fontSize = 55;
-            } else if (text.length === 4) {
-                fontSize = 42;
-            } else if (text.length > 4) {
-                // 5文字以上の場合は五角形の中に完全に収まるよう、かなり小さく設定
-                fontSize = Math.max(24, 180 / text.length);
-                yOffset = 2; // 小さくなったフォントの重心バランス調整
-            }
-
-            // フォントの適用
-            ctx.font = `bold ${fontSize}px 'Georgia', sans-serif`;
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            // アニメーションを停止し、少しの間静止させる
+            dice.classList.remove('rolling');
             
-            // 刻印のようなシャドウ効果
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-            ctx.shadowBlur = 5;
-            ctx.shadowOffsetX = 1;
-            ctx.shadowOffsetY = 2;
+            // 結果を強調するための小さなアニメーション効果（オプション）
+            dice.style.transform = 'scale(1.1)';
+            setTimeout(() => {
+                dice.style.transform = 'scale(1.0)';
+                // ボタンを再度有効化
+                rollButton.disabled = false;
+                rollButton.textContent = 'サイコロを振る';
+            }, 300);
 
-            // 最大幅制限（これを超える場合は自動でさらにギュッと横幅が縮小されます）
-            const maxLineWidth = 150; 
-            ctx.fillText(text, 0, yOffset, maxLineWidth);
-            
-            ctx.restore();
+        }, 1500); // 1.5秒間のアニメーション
+    }
 
-            const texture = new THREE.CanvasTexture(canvas);
-            return texture;
-        }
+    // 初期化: 元の画像の「12」を表示しておく
+    diceFace.textContent = '12';
+</script>
 
-        function createDice() {
-            const geometry = new THREE.DodecahedronGeometry(1.4);
-            const materials = [];
-            for (let i = 0; i < 12; i++) {
-                materials.push(new THREE.MeshStandardMaterial({
-                    map: createDiceTexture(faceValues[i]),
-                    roughness: 0.25,
-                    metalness: 0.4 
-                }));
-            }
-
-            geometry.clearGroups();
-            for (let i = 0; i < 12; i++) {
-                geometry.addGroup(i * 6, 6, i);
-            }
-
-            dice = new THREE.Mesh(geometry, materials);
-            dice.castShadow = true;
-            dice.receiveShadow = true;
-            
-            resetDicePosition();
-            scene.add(dice);
-        }
-
-        function updateDiceTextures() {
-            if (!dice) return;
-            for (let i = 0; i < 12; i++) {
-                if (dice.material[i].map) dice.material[i].map.dispose();
-                dice.material[i].map = createDiceTexture(faceValues[i]);
-                dice.material[i].needsUpdate = true;
-            }
-        }
-
-        function resetDicePosition() {
-            posX = 0; posY = -0.1; posZ = 0;
-            dice.position.set(posX, posY, posZ);
-            dice.rotation.set(0.2, 0.5, 0);
-            
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerText = "10";
-            resultDiv.classList.add('show');
-        }
-
-        function rollDice() {
-            if (isRolling) return;
-
-            isRolling = true;
-            document.getElementById('result').classList.remove('show');
-
-            posX = (Math.random() - 0.5) * 0.5;
-            posY = 4.5 + Math.random() * 1.5;
-            posZ = (Math.random() - 0.5) * 0.5;
-            dice.position.set(posX, posY, posZ);
-
-            velocityY = 0.08;
-            rotSpeedX = (Math.random() * 0.3 + 0.25) * (Math.random() > 0.5 ? 1 : -1);
-            rotSpeedY = (Math.random() * 0.3 + 0.25) * (Math.random() > 0.5 ? 1 : -1);
-            rotSpeedZ = (Math.random() * 0.3 + 0.25) * (Math.random() > 0.5 ? 1 : -1);
-        }
-
-        function checkResult() {
-            let maxDot = -1;
-            let highestFaceIndex = 0;
-
-            const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(dice.rotation);
-
-            for (let i = 0; i < faceNormals.length; i++) {
-                const worldNormal = faceNormals[i].clone().applyMatrix4(rotationMatrix);
-                const dot = worldNormal.dot(new THREE.Vector3(0, 1, 0));
-
-                if (dot > maxDot) {
-                    maxDot = dot;
-                    highestFaceIndex = i;
-                }
-            }
-
-            const resultValue = faceValues[highestFaceIndex];
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerText = resultValue !== "" ? resultValue : `面 ${highestFaceIndex + 1}`;
-            resultDiv.classList.add('show');
-
-            alignDiceToFace(highestFaceIndex);
-        }
-
-        function alignDiceToFace(faceIndex) {
-            const targetNormal = faceNormals[faceIndex];
-            const quaternion = new THREE.Quaternion().setFromUnitVectors(targetNormal, new THREE.Vector3(0, 1, 0));
-            dice.quaternion.slerp(quaternion, 1.0);
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            if (isRolling) {
-                velocityY += gravity;
-                posY += velocityY;
-                
-                posX += rotSpeedX * 0.04;
-                posZ += rotSpeedY * 0.04;
-
-                dice.rotation.x += rotSpeedX;
-                dice.rotation.y += rotSpeedY;
-                dice.rotation.z += rotSpeedZ;
-
-                if (posY <= -1.25) {
-                    posY = -1.25;
-                    velocityY = velocityY * bounce; 
-
-                    rotSpeedX *= 0.55;
-                    rotSpeedY *= 0.55;
-                    rotSpeedZ *= 0.55;
-
-                    if (Math.abs(velocityY) < 0.01 && Math.abs(rotSpeedX) < 0.01) {
-                        isRolling = false;
-                        velocityY = 0;
-                        checkResult();
-                    }
-                }
-
-                if (posX > 1.8) { posX = 1.8; rotSpeedX *= -0.5; }
-                if (posX < -1.8) { posX = -1.8; rotSpeedX *= -0.5; }
-                if (posZ > 1.5) { posZ = 1.5; rotSpeedY *= -0.5; }
-                if (posZ < -1.5) { posZ = -1.5; rotSpeedY *= -0.5; }
-
-                posX *= 0.95;
-                posZ *= 0.95;
-
-                dice.position.set(posX, posY, posZ);
-            }
-
-            renderer.render(scene, camera);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        init();
-    </script>
 </body>
 </html>
