@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 12面体サイコロ - リアルUI</title>
+    <title>3D 12面体サイコロ - 文字サイズ自動最適化</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
-            /* 画像の美しいダークネイビーのグラデーションを再現 */
             background: radial-gradient(circle at center, #2c3a47 0%, #17202a 100%);
             font-family: 'Times New Roman', Times, serif;
             user-select: none;
@@ -21,7 +20,6 @@
             display: block;
         }
 
-        /* 中央下部の「サイコロを振る」ボタン */
         #ui-container {
             position: absolute;
             bottom: 6%;
@@ -50,12 +48,6 @@
             box-shadow: 0 8px 25px rgba(230, 126, 34, 0.5);
         }
 
-        button#roll-button:active {
-            transform: translateY(1px);
-            box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-        }
-
-        /* 上部の結果表示テキスト */
         #result {
             position: absolute;
             top: 10%;
@@ -77,7 +69,6 @@
             transform: translateX(-50%) scale(1);
         }
 
-        /* 右下のカスタムメニュー起動用ボタン（画像右下の輝くアイコン風） */
         #menu-trigger {
             position: absolute;
             bottom: 4%;
@@ -102,7 +93,6 @@
             box-shadow: 0 0 20px rgba(255,255,255,0.4);
         }
 
-        /* ポップアップ式の値入力パネル */
         #input-panel {
             position: absolute;
             bottom: 10%;
@@ -190,18 +180,15 @@
     </div>
 
     <script>
-        // --- 全体設定と変数 ---
         let scene, camera, renderer, dice;
         let isRolling = false;
         
-        // 物理挙動用変数
         let velocityY = 0;
         let posX = 0, posY = 0, posZ = 0;
         let rotSpeedX = 0, rotSpeedY = 0, rotSpeedZ = 0;
         const gravity = -0.016;
-        const bounce = -0.50; // 跳ね返りを少し抑えて安定化
+        const bounce = -0.50; 
 
-        // 正十二面体の各面の法線ベクトル
         const t = (1 + Math.sqrt(5)) / 2;
         const faceNormals = [
             new THREE.Vector3( 0,  1/t,  t).normalize(),
@@ -218,17 +205,14 @@
             new THREE.Vector3(-t,  0, -1/t).normalize()
         ];
 
-        // 各面の初期値（画像に合わせて10が目立つように割り当て）
         let faceValues = ["1", "12", "2", "11", "3", "10", "4", "9", "5", "8", "6", "7"];
 
-        // --- 初期化 ---
         function init() {
             createInputFields();
 
             const container = document.getElementById('canvas-container');
             scene = new THREE.Scene();
 
-            // カメラの設定（中央に綺麗に収まるアスペクト比）
             camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
             camera.position.set(0, 6, 9);
             camera.lookAt(0, -0.5, 0);
@@ -239,31 +223,20 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.appendChild(renderer.domElement);
 
-            // 環境光（全体を自然に明るく）
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             scene.add(ambientLight);
 
-            // メインのディレクショナルライト（画像のようなリアルな陰影とスポット効果）
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
             dirLight.position.set(0, 12, 4);
             dirLight.castShadow = true;
             dirLight.shadow.mapSize.width = 2048;
             dirLight.shadow.mapSize.height = 2048;
-            dirLight.shadow.camera.near = 0.5;
-            dirLight.shadow.camera.far = 20;
-            dirLight.shadow.camera.left = -4;
-            dirLight.shadow.camera.right = 4;
-            dirLight.shadow.camera.top = 4;
-            dirLight.shadow.camera.bottom = -4;
-            dirLight.shadow.bias = -0.0005;
             scene.add(dirLight);
 
-            // 補助ライト（下からの暗がりを防ぐ）
             const fillLight = new THREE.DirectionalLight(0x85929e, 0.3);
             fillLight.position.set(0, -5, 2);
             scene.add(fillLight);
 
-            // 床面（影の受け皿）
             const floorGeo = new THREE.PlaneGeometry(50, 50);
             const floorMat = new THREE.ShadowMaterial({ opacity: 0.4 });
             const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -272,14 +245,11 @@
             floor.receiveShadow = true;
             scene.add(floor);
 
-            // サイコロの作成
             createDice();
 
-            // イベントリスナー
             window.addEventListener('resize', onWindowResize, false);
             document.getElementById('roll-button').addEventListener('click', rollDice);
             
-            // パネル開閉ボタンのロジック
             const trigger = document.getElementById('menu-trigger');
             const panel = document.getElementById('input-panel');
             trigger.addEventListener('click', () => {
@@ -289,7 +259,6 @@
             animate();
         }
 
-        // --- 右下の入力フォーム作成 ---
         function createInputFields() {
             const container = document.getElementById('inputs-container');
             for (let i = 0; i < 12; i++) {
@@ -314,61 +283,72 @@
             }
         }
 
-        // --- 画像のようなシックな質感のテクスチャを生成 ---
+        // --- 文字列の長さに応じてサイズを100%収めるテクスチャジェネレーター ---
         function createDiceTexture(text) {
             const canvas = document.createElement('canvas');
             canvas.width = 256;
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
 
-            // 高級感のあるダークグレーのグラデーション（金属・ダイキャスト風のベース）
+            // ベースグラデーション
             const grad = ctx.createRadialGradient(128, 128, 20, 128, 128, 130);
             grad.addColorStop(0, '#5d6d7e');
             grad.addColorStop(1, '#2e4053');
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, 256, 256);
 
-            // 内側にうっすらと縁取りを入れてリアルな立体感を出す
+            // 外縁の飾り線
             ctx.strokeStyle = 'rgba(255,255,255,0.08)';
             ctx.lineWidth = 8;
             ctx.strokeRect(4, 4, 248, 248);
 
-            // 文字の描画
             ctx.save();
-            ctx.translate(128, 128);
+            ctx.translate(128, 128); // キャンバス中央を原点に
             
-            let fontSize = 80;
-            if (text.length > 2) fontSize = 50;
-            if (text.length > 4) fontSize = 32;
+            // 【重要】文字数・桁数に応じて最適なフォントサイズと位置を動的に決定
+            let fontSize = 75; // デフォルト（1〜2文字用）
+            let yOffset = 0;   // 垂直位置の微調整用
 
-            // 画像のような太くて美しいセリフ体フォント
-            ctx.font = `bold ${fontSize}px 'Georgia', serif`;
-            ctx.fillStyle = '#ffffff'; // 白抜きの文字
+            if (text.length === 3) {
+                fontSize = 55;
+            } else if (text.length === 4) {
+                fontSize = 42;
+            } else if (text.length > 4) {
+                // 5文字以上の場合は五角形の中に完全に収まるよう、かなり小さく設定
+                fontSize = Math.max(24, 180 / text.length);
+                yOffset = 2; // 小さくなったフォントの重心バランス調整
+            }
+
+            // フォントの適用
+            ctx.font = `bold ${fontSize}px 'Georgia', sans-serif`;
+            ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            // 彫り込まれたようなシャドウ効果
+            // 刻印のようなシャドウ効果
             ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-            ctx.shadowBlur = 6;
-            ctx.shadowOffsetX = 2;
-            ctx.shadowOffsetY = 3;
+            ctx.shadowBlur = 5;
+            ctx.shadowOffsetX = 1;
+            ctx.shadowOffsetY = 2;
 
-            ctx.fillText(text, 0, 0);
+            // 最大幅制限（これを超える場合は自動でさらにギュッと横幅が縮小されます）
+            const maxLineWidth = 150; 
+            ctx.fillText(text, 0, yOffset, maxLineWidth);
+            
             ctx.restore();
 
             const texture = new THREE.CanvasTexture(canvas);
             return texture;
         }
 
-        // --- サイコロの構築 ---
         function createDice() {
-            const geometry = new THREE.DodecahedronGeometry(1.4); // サイズを微調整
+            const geometry = new THREE.DodecahedronGeometry(1.4);
             const materials = [];
             for (let i = 0; i < 12; i++) {
                 materials.push(new THREE.MeshStandardMaterial({
                     map: createDiceTexture(faceValues[i]),
-                    roughness: 0.3,
-                    metalness: 0.4 // 金属感をプラスして画像に接近
+                    roughness: 0.25,
+                    metalness: 0.4 
                 }));
             }
 
@@ -395,38 +375,32 @@
         }
 
         function resetDicePosition() {
-            posX = 0; posY = -0.1; posZ = 0; // 画像の静止位置に合わせる
+            posX = 0; posY = -0.1; posZ = 0;
             dice.position.set(posX, posY, posZ);
-            // 最初は10が綺麗に正面を向くように角度を固定
             dice.rotation.set(0.2, 0.5, 0);
             
-            // 初期状態で画像と同じ「10」を表示しておく
             const resultDiv = document.getElementById('result');
             resultDiv.innerText = "10";
             resultDiv.classList.add('show');
         }
 
-        // --- サイコロを振るアクション ---
         function rollDice() {
             if (isRolling) return;
 
             isRolling = true;
             document.getElementById('result').classList.remove('show');
 
-            // 完全に中央上空にリセット
-            posX = (Math.random() - 0.5) * 0.5; // 横ブレを小さくして画面外飛び出しを防止
-            posY = 4.5 + Math.random() * 1.5;   // 適度な高さ
+            posX = (Math.random() - 0.5) * 0.5;
+            posY = 4.5 + Math.random() * 1.5;
             posZ = (Math.random() - 0.5) * 0.5;
             dice.position.set(posX, posY, posZ);
 
-            // 初期速度と十分な回転力を付与
             velocityY = 0.08;
             rotSpeedX = (Math.random() * 0.3 + 0.25) * (Math.random() > 0.5 ? 1 : -1);
             rotSpeedY = (Math.random() * 0.3 + 0.25) * (Math.random() > 0.5 ? 1 : -1);
             rotSpeedZ = (Math.random() * 0.3 + 0.25) * (Math.random() > 0.5 ? 1 : -1);
         }
 
-        // --- 正確な出目の判定 ---
         function checkResult() {
             let maxDot = -1;
             let highestFaceIndex = 0;
@@ -457,35 +431,28 @@
             dice.quaternion.slerp(quaternion, 1.0);
         }
 
-        // --- アニメーションループ（物理演算と画面外対策） ---
         function animate() {
             requestAnimationFrame(animate);
 
             if (isRolling) {
-                // 重力の適用
                 velocityY += gravity;
                 posY += velocityY;
                 
-                // 位置の移動
                 posX += rotSpeedX * 0.04;
                 posZ += rotSpeedY * 0.04;
 
-                // 回転の適用
                 dice.rotation.x += rotSpeedX;
                 dice.rotation.y += rotSpeedY;
                 dice.rotation.z += rotSpeedZ;
 
-                // 【バグ対策】床（y = -1.3）との衝突判定
                 if (posY <= -1.25) {
                     posY = -1.25;
                     velocityY = velocityY * bounce; 
 
-                    // 衝突の衝撃で回転速度を徐々に減衰
                     rotSpeedX *= 0.55;
                     rotSpeedY *= 0.55;
                     rotSpeedZ *= 0.55;
 
-                    // 完全にエネルギーが無くなったら停止
                     if (Math.abs(velocityY) < 0.01 && Math.abs(rotSpeedX) < 0.01) {
                         isRolling = false;
                         velocityY = 0;
@@ -493,13 +460,11 @@
                     }
                 }
 
-                // 【超重要】サイコロ消滅・見失い絶対防止用の見えない壁（境界制限）
                 if (posX > 1.8) { posX = 1.8; rotSpeedX *= -0.5; }
                 if (posX < -1.8) { posX = -1.8; rotSpeedX *= -0.5; }
                 if (posZ > 1.5) { posZ = 1.5; rotSpeedY *= -0.5; }
                 if (posZ < -1.5) { posZ = -1.5; rotSpeedY *= -0.5; }
 
-                // 自然に画面中央に戻るように緩やかに摩擦（空気抵抗）をかける
                 posX *= 0.95;
                 posZ *= 0.95;
 
@@ -509,7 +474,6 @@
             renderer.render(scene, camera);
         }
 
-        // --- リサイズ処理 ---
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
