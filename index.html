@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 12面体ダイス・ロール</title>
+    <title>3D 12面体ダイス・ロール (修正版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         :root {
@@ -47,7 +47,6 @@
             box-sizing: border-box;
         }
 
-        /* 3Dキャンバスの表示エリア */
         #canvas-container {
             width: 100%;
             height: 300px;
@@ -58,7 +57,6 @@
             box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
         }
 
-        /* 結果テキスト */
         .result-display {
             font-size: 24px;
             font-weight: bold;
@@ -68,7 +66,6 @@
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
-        /* メインボタン */
         .action-btn {
             background-color: var(--orange-btn);
             color: white;
@@ -98,7 +95,6 @@
             cursor: not-allowed;
         }
 
-        /* 右下の設定アイコンボタン */
         .settings-icon-btn {
             position: absolute;
             bottom: 20px;
@@ -128,7 +124,6 @@
             filter: drop-shadow(0 0 4px rgba(255,255,255,0.6));
         }
 
-        /* 設定メニュー（スライドイン・モーダル） */
         .menu-modal {
             position: absolute;
             top: 0;
@@ -174,7 +169,6 @@
             line-height: 1;
         }
 
-        /* 12面の入力グリッド */
         .inputs-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -243,7 +237,6 @@
 
 <div class="container">
     <div id="canvas-container"></div>
-    
     <div class="result-display" id="result-text">Ready</div>
     <button class="action-btn" id="roll-button" onclick="rollDice()">サイコロを振る</button>
 
@@ -264,11 +257,8 @@
 </div>
 
 <script>
-    // --- グローバルデータ設定 ---
     let diceValues = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
-    let currentResult = "12";
 
-    // --- UI要素 ---
     const rollButton = document.getElementById('roll-button');
     const openMenuBtn = document.getElementById('open-menu-btn');
     const closeMenuBtn = document.getElementById('close-menu-btn');
@@ -276,19 +266,17 @@
     const inputsContainer = document.getElementById('inputs-container');
     const resultText = document.getElementById('result-text');
 
-    // --- Three.js 変数 ---
     let scene, camera, renderer, diceMesh;
     let isRolling = false;
     
-    // 擬似物理アニメーション用変数
+    // 物理シミュレーション設定
     let velocityY = 0;
     let posX = 0, posY = 0, posZ = 0;
     let rotSpeedX = 0, rotSpeedY = 0, rotSpeedZ = 0;
-    const gravity = -0.015;
-    const bounceDecay = 0.6; // バウンド時の跳ね返り係数
+    const gravity = -0.012;
+    const bounceDecay = 0.55; 
 
-    // --- 12面体（正十二面体）の各面の法線ベクトル ---
-    // これを使って、回転が終わった時にカメラ（上方向）に最も近い面を判定します
+    // 正十二面体の数学的に正しい12面の中心法線ベクトル（定義順）
     const t = (1 + Math.sqrt(5)) / 2;
     const rawVertices = [
         [1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1],
@@ -298,7 +286,6 @@
         [t, 0, 1/t], [t, 0, -1/t], [-t, 0, 1/t], [-t, 0, -1/t]
     ];
     
-    // 正十二面体の12個の面（各面を構成する頂点インデックス）
     const facesIndices = [
         [0, 8, 4, 14, 12],   // 面1
         [15, 6, 10, 2, 13],  // 面2
@@ -309,12 +296,11 @@
         [2, 10, 8, 0, 16],   // 面7
         [3, 17, 1, 9, 11],   // 面8
         [7, 15, 13, 3, 11],  // 面9
-        [7, 19, 18, 6, 15],  // 面10
-        [19, 5, 14, 4, 18],  // 面11
+        [7, 15, 6, 18, 19],  // 面10 (インデックス修正)
+        [18, 4, 14, 5, 19],  // 面11 (インデックス修正)
         [3, 13, 2, 16, 17]   // 面12
     ];
 
-    // 各面の中心法線ベクトルを計算
     const faceNormals = facesIndices.map(face => {
         let normal = new THREE.Vector3(0, 0, 0);
         face.forEach(idx => {
@@ -323,7 +309,6 @@
         return normal.normalize();
     });
 
-    // --- Three.js 初期化 ---
     function init3D() {
         const container = document.getElementById('canvas-container');
         const width = container.clientWidth;
@@ -331,9 +316,8 @@
 
         scene = new THREE.Scene();
 
-        // カメラ設定 (上から少し見下ろすアングル)
         camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-        camera.position.set(0, 4, 7);
+        camera.position.set(0, 4.5, 6.5);
         camera.lookAt(0, 0, 0);
 
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -341,20 +325,19 @@
         renderer.shadowMap.enabled = true;
         container.appendChild(renderer.domElement);
 
-        // 照明
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(5, 10, 7);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(5, 12, 7);
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        const pointLight = new THREE.PointLight(0xf2cf66, 0.5, 10);
+        const pointLight = new THREE.PointLight(0xf2cf66, 0.6, 10);
         pointLight.position.set(-3, 3, -2);
         scene.add(pointLight);
 
-        // 床（影を受ける用）
+        // 床
         const floorGeo = new THREE.PlaneGeometry(20, 20);
         const floorMat = new THREE.ShadowMaterial({ opacity: 0.3 });
         const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -363,27 +346,28 @@
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // 12面体ダイスの生成
         createDiceMesh();
-
-        // アニメーションループ開始
         animate();
     }
 
-    // 12面のテクスチャ（文字入り）を生成してダイスを作成
     function createDiceMesh() {
         if (diceMesh) scene.remove(diceMesh);
 
+        // バージョン差異を吸収するため、各面に個別のグループを正しく定義
         const geometry = new THREE.DodecahedronGeometry(1.2);
+        geometry.clearGroups();
         
-        // 元画像の高級感あるダークメタル＋ゴールドエッジをシミュレート
+        // DodecahedronGeometryは36個の三角形（12面×3）で構成されているため、正しくマテリアルをマッピング
+        for (let i = 0; i < 12; i++) {
+            geometry.addGroup(i * 3 * 3, 9, i);
+        }
+        
         const materials = faceNormals.map((normal, idx) => {
             const canvas = document.createElement('canvas');
             canvas.width = 256;
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
 
-            // 背景：ブラッシュドメタル風グラデーション
             const grad = ctx.createLinearGradient(0, 0, 256, 256);
             grad.addColorStop(0, '#4c5a6f');
             grad.addColorStop(0.5, '#3d4a5c');
@@ -391,150 +375,121 @@
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, 256, 256);
 
-            // 外枠（五角形のゴールドエッジ）
             ctx.strokeStyle = '#f2cf66';
-            ctx.lineWidth = 12;
+            ctx.lineWidth = 14;
             ctx.beginPath();
             for (let i = 0; i < 5; i++) {
                 const angle = (i * 2 * Math.PI / 5) - Math.PI / 2;
-                const x = 128 + 105 * Math.cos(angle);
-                const y = 135 + 105 * Math.sin(angle); // 少し下重心に調整
+                const x = 128 + 100 * Math.cos(angle);
+                const y = 132 + 100 * Math.sin(angle);
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
             ctx.closePath();
             ctx.stroke();
 
-            // 文字の描画
             ctx.fillStyle = '#ffffff';
             ctx.shadowColor = 'rgba(0,0,0,0.8)';
             ctx.shadowBlur = 6;
-            ctx.shadowOffsetX = 3;
-            ctx.shadowOffsetY = 3;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
 
-            // 文字数によってフォントサイズを動的に変更
             const text = diceValues[idx] || "";
-            const fontSize = text.length > 3 ? 40 : (text.length > 1 ? 65 : 85);
+            const fontSize = text.length > 3 ? 40 : (text.length > 1 ? 60 : 80);
             ctx.font = `bold ${fontSize}px 'Segoe UI', sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, 128, 135);
+            ctx.fillText(text, 128, 132);
 
             const texture = new THREE.CanvasTexture(canvas);
             return new THREE.MeshStandardMaterial({
                 map: texture,
-                metalness: 0.7,
-                roughness: 0.3,
-                bumpMap: texture,
-                bumpScale: 0.02
+                metalness: 0.6,
+                roughness: 0.3
             });
         });
 
-        // 12面体の各面に個別のマテリアル（文字）を割り当てる
-        // DodecahedronGeometryの面インデックスに対応（1つの正五角形は3つの三角形で構成されるため計36面ある）
-        const groups = geometry.groups;
-        for (let i = 0; i < geometry.index.count / 3; i++) {
-            const faceIndex = Math.floor(i / 3); // 3つの三角形で1つの五角形面
-            geometry.addGroup(i * 3, 3, faceIndex);
-        }
-
         diceMesh = new THREE.Mesh(geometry, materials);
         diceMesh.castShadow = true;
-        diceMesh.position.set(0, 0, 0);
         
-        // 初期アングル（12番が綺麗に正面を向くように微調整）
+        // 初期状態は12番が上を向くように設定
         alignDiceToFace(11); 
-
         scene.add(diceMesh);
     }
 
-    // 指定したインデックスの面を綺麗に「真上（カメラ方向）」に向ける関数
     function alignDiceToFace(faceIndex) {
-        diceMesh.quaternion.set(0, 0, 0, 1); // 一度回転をリセット
+        diceMesh.quaternion.set(0, 0, 0, 1);
         const targetNormal = faceNormals[faceIndex].clone();
-        const upVector = new THREE.Vector3(0, 1, 0); // 真上
+        const upVector = new THREE.Vector3(0, 1, 0);
         
         const quaternion = new THREE.Quaternion();
         quaternion.setFromUnitVectors(targetNormal, upVector);
         diceMesh.quaternion.copy(quaternion);
         
-        // 12番の文字が上下逆さまにならないよう微調整
         if(faceIndex === 11) diceMesh.rotateY(Math.PI);
     }
 
-    // --- ループアニメーション（物理挙動の簡易計算） ---
     function animate() {
         requestAnimationFrame(animate);
 
         if (isRolling) {
-            // Y軸の移動（重力とバウンド）
             velocityY += gravity;
             posY += velocityY;
 
-            // 床（y = 0基準）に衝突したときの処理
+            // 床に衝突時
             if (posY <= 0) {
                 posY = 0;
-                if (Math.abs(velocityY) > 0.03) {
-                    velocityY = -velocityY * bounceDecay; // 跳ね返り
-                    // バウンド時に回転軸を少し狂わせる（リアルさの向上）
+                if (Math.abs(velocityY) > 0.05) {
+                    velocityY = -velocityY * bounceDecay;
                     rotSpeedX += (Math.random() - 0.5) * 0.1;
                     rotSpeedZ += (Math.random() - 0.5) * 0.1;
                 } else {
-                    // バウンドが収まったら停止処理へ移行
                     stopRollingAndDetermineResult();
                 }
             }
 
-            // 位置の更新
             diceMesh.position.y = posY;
             diceMesh.position.x += posX;
             diceMesh.position.z += posZ;
 
-            // 徐々に横移動は減速
             posX *= 0.98;
             posZ *= 0.98;
 
-            // 回転の更新
             diceMesh.rotateX(rotSpeedX);
             diceMesh.rotateY(rotSpeedY);
             diceMesh.rotateZ(rotSpeedZ);
 
-            // 回転速度も徐々に摩擦で落ちる
-            rotSpeedX *= 0.98;
-            rotSpeedY *= 0.98;
-            rotSpeedZ *= 0.98;
+            rotSpeedX *= 0.97;
+            rotSpeedY *= 0.97;
+            rotSpeedZ *= 0.97;
         }
 
         renderer.render(scene, camera);
     }
 
-    // --- サイコロを振るアクション ---
     function rollDice() {
         if (isRolling) return;
 
         isRolling = true;
         rollButton.disabled = true;
         openMenuBtn.style.display = 'none';
-        resultText.textContent = "Rolling...";
+        resultText.textContent = "振っています...";
 
-        // 空中に持ち上げて放り投げるパラメータを設定
-        posY = 3.0; 
-        velocityY = 0.1; // 上向きの初速
-        posX = (Math.random() - 0.5) * 0.05; // 左右へのブレ
-        posZ = (Math.random() - 0.5) * 0.05;
+        // 初期ポジションと回転速度を設定
+        posY = 3.5; 
+        velocityY = 0.05;
+        posX = (Math.random() - 0.5) * 0.03;
+        posZ = (Math.random() - 0.5) * 0.03;
 
-        // ランダムな激しい回転速度
-        rotSpeedX = (Math.random() * 0.3) + 0.2;
-        rotSpeedY = (Math.random() * 0.3) + 0.2;
-        rotSpeedZ = (Math.random() * 0.3) + 0.2;
+        rotSpeedX = (Math.random() * 0.4) + 0.2;
+        rotSpeedY = (Math.random() * 0.4) + 0.2;
+        rotSpeedZ = (Math.random() * 0.4) + 0.2;
     }
 
-    // 転がりが止まった時の判定
     function stopRollingAndDetermineResult() {
         isRolling = false;
-        diceMesh.position.set(0, 0, 0); // 中央に戻す
+        diceMesh.position.set(0, 0, 0); 
 
-        // 現在のサイコロの回転状態から、真上(0, 1, 0)に最も近い面を計算する
         let maxDot = -1;
         let winningFaceIndex = 0;
 
@@ -542,29 +497,23 @@
         currentRotation.makeRotationFromQuaternion(diceMesh.quaternion);
 
         faceNormals.forEach((normal, idx) => {
-            // 本体の回転を法線ベクトルに適用
             const worldNormal = normal.clone().applyMatrix4(currentRotation);
-            // 真上ベクトル (0,1,0) との内積を計算（1に最も近いものが上を向いている）
-            const dot = worldNormal.dot(new THREE.Vector3(0, 1, 0));
+            const dot = worldNormal.dot(new THREE.Vector3(0, 1, 0)); // 真上との一致度
             if (dot > maxDot) {
                 maxDot = dot;
                 winningFaceIndex = idx;
             }
         });
 
-        // 決定した面を綺麗に正面へスナップ（ピタッと止める）
         alignDiceToFace(winningFaceIndex);
 
-        // 結果の表示
-        currentResult = diceValues[winningFaceIndex];
+        const currentResult = diceValues[winningFaceIndex];
         resultText.textContent = `出た目は: ${currentResult}`;
 
-        // ボタンの復活
         rollButton.disabled = false;
         openMenuBtn.style.display = 'flex';
     }
 
-    // --- メニュー・カスタマイズ関連 ---
     function initMenu() {
         inputsContainer.innerHTML = '';
         diceValues.forEach((val, index) => {
@@ -582,7 +531,7 @@
             
             input.addEventListener('input', (e) => {
                 diceValues[e.target.dataset.index] = e.target.value || `${Number(e.target.dataset.index)+1}`;
-                createDiceMesh(); // 文字が打ち替えられたら3Dモデルを再生成
+                createDiceMesh(); 
             });
 
             group.appendChild(label);
@@ -601,7 +550,6 @@
     openMenuBtn.addEventListener('click', () => menuModal.classList.add('open'));
     closeMenuBtn.addEventListener('click', () => menuModal.classList.remove('open'));
 
-    // ウィンドウサイズが変更されたらリサイズ対応
     window.addEventListener('resize', () => {
         const container = document.getElementById('canvas-container');
         if (!container) return;
@@ -612,7 +560,6 @@
         renderer.setSize(width, height);
     });
 
-    // 起動
     window.onload = () => {
         init3D();
         initMenu();
