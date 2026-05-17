@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 12面体サイコロ</title>
+    <title>3D 12面体サイコロ（出目表示）</title>
     <style>
         body {
             margin: 0;
@@ -95,7 +95,6 @@
         const bounce = -0.55; // 跳ね返り係数
 
         // 正十二面体（12面体）の各面の中心ベクトル（向いている方向）
-        // 12面体の頂点座標から計算された、各面に対応する法線ベクトル
         const t = (1 + Math.sqrt(5)) / 2;
         const faceNormals = [
             new THREE.Vector3( 0,  1/t,  t).normalize(),
@@ -112,8 +111,18 @@
             new THREE.Vector3(-t,  0, -1/t).normalize()
         ];
 
-        // 各面に対応する数値 (見栄えに合わせてマッピング)
+        // 各面に対応する数値
         const faceValues = [1, 12, 2, 11, 3, 10, 4, 9, 5, 8, 6, 7];
+        // 面番号から数値へのマップ
+        const faceMap = new Map();
+        for (let i = 0; i < 12; i++) {
+            faceMap.set(i, faceValues[i]);
+        }
+        // 数値から面番号へのマップ
+        const valueMap = new Map();
+        for (let i = 0; i < 12; i++) {
+            valueMap.set(faceValues[i], i);
+        }
 
         // --- 初期化 ---
         function init() {
@@ -172,13 +181,13 @@
         }
 
         // --- キャンバス上に数字を描画してテクスチャを作る ---
-        function createDiceTexture(number) {
+        function createDiceTexture(number, isStatic = false, rotation = 0) {
             const canvas = document.createElement('canvas');
             canvas.width = 256;
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
 
-            // 背景（大理石風の質感を少し出すためにグラデーション）
+            // 背景
             const grad = ctx.createRadialGradient(128, 128, 10, 128, 128, 140);
             grad.addColorStop(0, '#f1f2f6');
             grad.addColorStop(1, '#ced6e0');
@@ -186,18 +195,21 @@
             ctx.fillRect(0, 0, 256, 256);
 
             // 数字の描画
+            ctx.save();
+            ctx.translate(128, 128);
+            ctx.rotate(rotation);
             ctx.font = 'bold 85px Georgia, serif';
-            ctx.fillStyle = '#2c3e50';
+            ctx.fillStyle = isStatic ? '#27ae60' : '#2c3e50'; // 結果の面の色を変更
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            // 少しシャドウを入れて立体感を出す
             ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
             ctx.shadowBlur = 4;
             ctx.shadowOffsetX = 2;
             ctx.shadowOffsetY = 2;
 
-            ctx.fillText(number, 128, 128);
+            ctx.fillText(number, 0, 0);
+            ctx.restore();
 
             const texture = new THREE.CanvasTexture(canvas);
             return texture;
@@ -212,15 +224,13 @@
             const materials = [];
             for (let i = 0; i < 12; i++) {
                 materials.push(new THREE.MeshStandardMaterial({
-                    map: createDiceTexture(faceValues[i]),
+                    map: createDiceTexture(faceMap.get(i)),
                     roughness: 0.2,
                     metalness: 0.1,
                     bumpScale: 0.05
                 }));
             }
 
-            // Three.jsのDodecahedronGeometryの各面にマテリアルIDを割り当てる
-            // 1つの面に2つの三角形ポリゴンが含まれるため、2面ずつ同じマテリアルを適用
             const pos = geometry.attributes.position;
             geometry.clearGroups();
             for (let i = 0; i < 12; i++) {
@@ -248,6 +258,20 @@
 
             isRolling = true;
             document.getElementById('result').classList.remove('show');
+
+            // 出目を決定
+            const resultValue = Math.floor(Math.random() * 12) + 1;
+            const targetFaceIndex = valueMap.get(resultValue);
+
+            // サイコロの全ての面のテクスチャを通常の状態に戻す
+            for (let i = 0; i < 12; i++) {
+                dice.material[i].map = createDiceTexture(faceMap.get(i));
+                dice.material[i].needsUpdate = true;
+            }
+
+            // 出目の面だけをハイライト（静止状態をシミュレート）
+            dice.material[targetFaceIndex].map = createDiceTexture(resultValue, true);
+            dice.material[targetFaceIndex].needsUpdate = true;
 
             // 開始位置を空中へ
             posX = (Math.random() - 0.5) * 2;
@@ -283,19 +307,28 @@
             }
 
             // 結果を表示
-            const resultValue = faceValues[highestFaceIndex];
+            const resultValue = faceMap.get(highestFaceIndex);
             const resultDiv = document.getElementById('result');
             resultDiv.innerText = resultValue;
             resultDiv.classList.add('show');
 
-            // ジャストな角度に微調整（ピタッと止まる演出）
+            // 出目の面をハイライト（すでに rollDice でやっているが、念のため）
+            for (let i = 0; i < 12; i++) {
+                if (i === highestFaceIndex) {
+                    dice.material[i].map = createDiceTexture(faceMap.get(i), true);
+                } else {
+                    dice.material[i].map = createDiceTexture(faceMap.get(i));
+                }
+                dice.material[i].needsUpdate = true;
+            }
+
+            // ジャストな角度に微調整
             alignDiceToFace(highestFaceIndex);
         }
 
         // 最も上を向いている面を完全に水平にする補正アニメーション
         function alignDiceToFace(faceIndex) {
             const targetNormal = faceNormals[faceIndex];
-            const currentRotation = dice.rotation.clone();
             
             // 擬似的にターゲットの面が真上を向くクォータニオン（回転）を計算
             const quaternion = new THREE.Quaternion().setFromUnitVectors(targetNormal, new THREE.Vector3(0, 1, 0));
@@ -322,7 +355,7 @@
                 dice.rotation.y += rotSpeedY;
                 dice.rotation.z += rotSpeedZ;
 
-                // 床（y = -1.5）との衝突判定
+                // 床との衝突判定
                 if (posY <= -1.2) {
                     posY = -1.2;
                     velocityY = velocityY * bounce; // 跳ね返り
